@@ -64,7 +64,7 @@ type Raft struct {
 	// Your data here (2A, 2B, 2C).
 	// Look at the paper's Figure 2 for a description of what
 	// state a Raft server must maintain.
-	currentTerm int
+	currentTerm int64
 	votedFor    int
 	state       RaftState
 	log         []int
@@ -74,14 +74,12 @@ type Raft struct {
 // return currentTerm and whether this server
 // believes it is the leader.
 func (rf *Raft) GetState() (int, bool) {
-
-	var term int = rf.currentTerm
 	var isleader bool = false
 	if rf.state.GetState() == 0 {
 		isleader = true
 	}
 	// Your code here (2A).
-	return term, isleader
+	return int(rf.getTerm()), isleader
 }
 
 //
@@ -191,27 +189,36 @@ func (rf *Raft) killed() bool {
 // The ticker go routine starts a new election if this peer hasn't received
 // heartsbeats recently.
 func (rf *Raft) ticker() {
-	rf.currentTerm++
+	rf.addTerm()
 	rf.votedFor = rf.me
 	peerNum := len(rf.peers)
-	timer := time.NewTimer(VoteTimeout)
-	var timeouted int32 = 0
+	voteTimeoutTimer := time.NewTimer(VoteTimeout)
+	var voteFinished int32 = 0
 	voteNum := 0
-	voteC := make(chan bool)
+	tickerVoteC := make(chan bool)
 	for i := 0; i < peerNum; i++ {
-		go func(index int, timeouted *int32) {
+		if i == rf.me {
+			voteNum++
+			// rf.Log("vote to self, has voteNum ", voteNum)
+			continue
+		}
+		go func(index int, voteFinished *int32) {
 			reply := RequestVoteReply{}
 			if ok := rf.sendRequestVote(index, &RequestVoteArgs{
-				Term: rf.currentTerm,
+				Term:        rf.getTerm(),
+				CandidateId: rf.me,
 			}, &reply); ok {
+				rf.Log("vote reply from ", index, reply)
 				if reply.VoteGranted {
-					if atomic.LoadInt32(timeouted) != 1 {
-						rf.Log("recv vote from ", index)
-						voteC <- true
+					if atomic.LoadInt32(voteFinished) == 1 {
+						// rf.Log("recv vote from ", index, " drop")
+						return
 					}
+					tickerVoteC <- true
+					// rf.Log("recv vote from ", index)
 				}
 			}
-		}(i, &timeouted)
+		}(i, &voteFinished)
 	}
 
 	for !rf.killed() {
@@ -219,27 +226,46 @@ func (rf *Raft) ticker() {
 		// be started and to randomize sleeping time using
 		// time.Sleep().
 		select {
-		case <-voteC:
+		case <-tickerVoteC:
 			voteNum++
 			rf.Log("has voteNum ", voteNum)
 			if voteNum >= (peerNum/2)+1 {
 				// became leader
+				rf.Log("get enougth vote , go Leader")
+				atomic.StoreInt32(&voteFinished, 1)
+				rf.votedFor = -1
 				rf.state.Turn(0)
 				return
 			}
-		case <-HeartBeatC:
-			rf.Log("Candidate get heartbeat , go Follower")
-			rf.state.Turn(2)
-			return
-		case <-timer.C:
-			atomic.StoreInt32(&timeouted, 1)
+		case entry := <-entryC:
+			reply := rf.handleEntry(entry.Req)
+			entry.ReplyC <- reply
+			if reply.Success {
+				rf.Log("get entry, go Follower, entry.Req.Term:", entry.Req.Term)
+				rf.votedFor = -1
+				rf.state.Turn(2)
+				return
+			} else {
+				rf.Log("Candidate get older Leader, Term:", entry.Req.Term)
+			}
+		case vote := <-voteC:
+			reply := rf.handleVote(vote.Req)
+			vote.ReplyC <- reply
+			if reply.VoteGranted {
+				rf.Log("get Vote, go Follower, vote.Req.Term:", vote.Req.Term)
+				rf.votedFor = -1
+				rf.state.Turn(2)
+				return
+			}
+		case <-voteTimeoutTimer.C:
+			atomic.StoreInt32(&voteFinished, 1)
 			rf.Log("vote timeout , go Candidate again")
+			rf.votedFor = -1
 			rf.state.Turn(1)
 			return
 		}
 	}
-	atomic.StoreInt32(&timeouted, 1)
-
+	atomic.StoreInt32(&voteFinished, 1)
 }
 
 //
@@ -260,7 +286,7 @@ func Make(peers []*labrpc.ClientEnd, me int,
 	rf.persister = persister
 	rf.me = me
 	// Your initialization code here (2A, 2B, 2C).
-	rf.currentTerm = 1
+	rf.setTerm(1)
 	rf.votedFor = -1
 	rf.state = RaftState{
 		role:   2,
