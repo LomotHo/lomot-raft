@@ -1,10 +1,17 @@
 package raft
 
-import "time"
+import (
+	"fmt"
+	"log"
+	"math/rand"
+	"sync/atomic"
+	"time"
+)
 
 const VoteTimeout time.Duration = time.Millisecond * 1000
-const HeartBeatTimeout time.Duration = time.Millisecond * 1000
-const VoteInterval time.Duration = time.Millisecond * 200
+const VoteInterval time.Duration = time.Millisecond * 50
+const HeartBeatTimeout time.Duration = time.Millisecond * 500
+const HeartBeatInterval time.Duration = time.Millisecond * 50
 
 var HeartBeatC = make(chan bool)
 
@@ -37,12 +44,13 @@ func (rf *Raft) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) {
 	// Your code here (2A, 2B).
 	rf.mu.Lock()
 	defer rf.mu.Unlock()
-	if args.Term < rf.currentTerm {
+	if args.Term <= rf.currentTerm {
 		reply.VoteGranted = false
 		return
 	}
 	if rf.votedFor == -1 || rf.votedFor == args.CandidateId {
 		reply.VoteGranted = true
+		rf.votedFor = args.CandidateId
 	} else {
 		reply.VoteGranted = false
 		return
@@ -125,4 +133,111 @@ func (rf *Raft) checkHeartBeat() {
 			break
 		}
 	}
+}
+
+// role 0:Leader 1:Candidate 2:Follower
+type RaftState struct {
+	role   int32
+	stateC chan int32
+}
+
+func (rfs *RaftState) SetState(role int32) {
+	atomic.StoreInt32(&rfs.role, role)
+}
+func (rfs *RaftState) GetState() int32 {
+	return atomic.LoadInt32(&rfs.role)
+}
+
+// type getState struct {
+
+// }
+func (rf *Raft) Run() {
+	go rf.runFollower()
+	for {
+		select {
+		case state := <-rf.state.stateC:
+			{
+				switch state {
+				case 0:
+					rf.state.SetState(0)
+					go rf.runLeader()
+				case 1:
+					rf.state.SetState(1)
+					go rf.runCandidate()
+				case 2:
+					rf.state.SetState(2)
+					go rf.runFollower()
+				}
+			}
+			// case s:= <-x:{
+
+			// }
+		}
+	}
+
+}
+
+func (rfs *RaftState) Turn(role int32) {
+	rfs.stateC <- role
+}
+
+func (rf *Raft) runLeader() {
+	heartBeatNum := 0
+	heartBeatCommitNum := 0
+	peerNum := len(rf.peers)
+	heartbeatTicker := time.NewTicker(HeartBeatInterval)
+	defer heartbeatTicker.Stop()
+	for {
+		select {
+		case <-heartbeatTicker.C:
+			{
+				for i := 0; i < peerNum; i++ {
+					go func(index int) {
+						reply := AppendEntriesReply{}
+						if ok := rf.sendAppendEntries(index, &AppendEntriesArgs{
+							Term: rf.currentTerm,
+						}, &reply); ok {
+							heartBeatNum++
+							if heartBeatNum > (peerNum/2)+1 {
+								heartBeatNum = 0
+								heartBeatCommitNum++
+								if heartBeatCommitNum%20 == 0 {
+									rf.Log("heartbeat AppendEntries commit", heartBeatCommitNum)
+								}
+							}
+						}
+					}(i)
+				}
+			}
+
+		}
+
+	}
+
+}
+
+func (rf *Raft) runCandidate() {
+	// rf.Log("became Candidate")
+	rf.ticker()
+}
+
+func (rf *Raft) runFollower() {
+	ra := rand.Intn(50)
+	heartBeatTimeout := HeartBeatTimeout + time.Millisecond*time.Duration(ra)
+	timer := time.NewTimer(heartBeatTimeout)
+	for {
+		select {
+		case <-HeartBeatC:
+			timer.Reset(heartBeatTimeout)
+		case <-timer.C:
+			rf.Log("Follower heartbeat timeout, go Candidate")
+			go rf.state.Turn(1)
+			return
+		}
+	}
+}
+
+func (rf *Raft) Log(v ...interface{}) {
+	color := rf.currentTerm % 7
+	log.Println(fmt.Sprintf("\033[3%vm[t%vnode%v]\033[0m", color, rf.currentTerm, rf.me), fmt.Sprint(v...))
 }

@@ -19,6 +19,7 @@ package raft
 
 import (
 	//	"bytes"
+
 	"sync"
 	"sync/atomic"
 	"time"
@@ -65,6 +66,7 @@ type Raft struct {
 	// state a Raft server must maintain.
 	currentTerm int
 	votedFor    int
+	state       RaftState
 	log         []int
 	// commitIndex int
 }
@@ -73,8 +75,11 @@ type Raft struct {
 // believes it is the leader.
 func (rf *Raft) GetState() (int, bool) {
 
-	var term int
-	var isleader bool
+	var term int = rf.currentTerm
+	var isleader bool = false
+	if rf.state.GetState() == 0 {
+		isleader = true
+	}
 	// Your code here (2A).
 	return term, isleader
 }
@@ -201,6 +206,7 @@ func (rf *Raft) ticker() {
 			}, &reply); ok {
 				if reply.VoteGranted {
 					if atomic.LoadInt32(timeouted) != 1 {
+						rf.Log("recv vote from ", index)
 						voteC <- true
 					}
 				}
@@ -215,14 +221,20 @@ func (rf *Raft) ticker() {
 		select {
 		case <-voteC:
 			voteNum++
-			if voteNum > peerNum/2 {
+			rf.Log("has voteNum ", voteNum)
+			if voteNum >= (peerNum/2)+1 {
 				// became leader
+				rf.state.Turn(0)
+				return
 			}
+		case <-HeartBeatC:
+			rf.Log("Candidate get heartbeat , go Follower")
+			rf.state.Turn(2)
 			return
 		case <-timer.C:
 			atomic.StoreInt32(&timeouted, 1)
-			// timeouted = true
-			go rf.ticker()
+			rf.Log("vote timeout , go Candidate again")
+			rf.state.Turn(1)
 			return
 		}
 	}
@@ -247,16 +259,20 @@ func Make(peers []*labrpc.ClientEnd, me int,
 	rf.peers = peers
 	rf.persister = persister
 	rf.me = me
-
 	// Your initialization code here (2A, 2B, 2C).
-	rf.currentTerm = 0
+	rf.currentTerm = 1
 	rf.votedFor = -1
+	rf.state = RaftState{
+		role:   2,
+		stateC: make(chan int32),
+	}
 
 	// initialize from state persisted before a crash
 	rf.readPersist(persister.ReadRaftState())
 
 	// start ticker goroutine to start elections
-	go rf.ticker()
+	// go rf.ticker()
+	go rf.Run()
 
 	return rf
 }
