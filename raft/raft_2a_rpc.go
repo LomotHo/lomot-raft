@@ -163,9 +163,9 @@ func init() {
 
 func (rf *Raft) Log(v ...interface{}) {
 	if Debug {
-		rf.mu.Lock()
+		// rf.mu.Lock()
 		me := rf.me
-		rf.mu.Unlock()
+		// rf.mu.Unlock()
 		currentTerm := rf.getTerm()
 		state := rf.state.GetState()
 		termColor := currentTerm % 7
