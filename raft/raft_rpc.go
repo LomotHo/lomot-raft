@@ -49,6 +49,9 @@ type RequestVoteReply struct {
 }
 
 func (rf *Raft) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) {
+	if rf.killed() {
+		return
+	}
 	replyC := make(chan RequestVoteReply)
 	voteC <- Vote{
 		Req:    *args,
@@ -73,6 +76,9 @@ type AppendEntriesReply struct {
 func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply) {
 	// rf.mu.Lock()
 	// defer rf.mu.Unlock()
+	if rf.killed() {
+		return
+	}
 	replyC := make(chan AppendEntriesReply)
 	entryC <- Entry{
 		Req:    *args,

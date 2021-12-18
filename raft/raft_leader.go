@@ -98,5 +98,4 @@ func (rf *Raft) runLeader() {
 	}
 	rf.Log("receive rf.killed!")
 	atomic.StoreInt32(&leaderClosed, 1)
-	return
 }

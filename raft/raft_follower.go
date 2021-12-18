@@ -11,6 +11,7 @@ func (rf *Raft) runFollower() {
 	// randOffset := 10 * rf.me
 	heartbeatTimeout := time.Duration(HeartBeatTimeout+randOffset) * time.Millisecond
 	timer := time.NewTimer(heartbeatTimeout)
+	defer timer.Stop()
 	for !rf.killed() {
 		select {
 		case entry := <-entryC:
