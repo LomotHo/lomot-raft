@@ -5,13 +5,10 @@ import (
 	"time"
 )
 
-const VoteTimeout time.Duration = time.Millisecond * 1000
+const VoteTimeout = 1000
 const VoteInterval time.Duration = time.Millisecond * 50
 const HeartBeatTimeout = 500
 const HeartBeatInterval time.Duration = time.Millisecond * 50
-
-var voteC = make(chan Vote)
-var entryC = make(chan Entry)
 
 type Vote struct {
 	Req    RequestVoteArgs

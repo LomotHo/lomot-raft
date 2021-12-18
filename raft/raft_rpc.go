@@ -53,7 +53,7 @@ func (rf *Raft) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) {
 		return
 	}
 	replyC := make(chan RequestVoteReply)
-	voteC <- Vote{
+	rf.voteC <- Vote{
 		Req:    *args,
 		ReplyC: replyC,
 	}
@@ -80,7 +80,7 @@ func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply
 		return
 	}
 	replyC := make(chan AppendEntriesReply)
-	entryC <- Entry{
+	rf.entryC <- Entry{
 		Req:    *args,
 		ReplyC: replyC,
 	}
@@ -94,40 +94,30 @@ func (rf *Raft) sendAppendEntries(server int, args *AppendEntriesArgs, reply *Ap
 }
 
 // role 0:Leader 1:Candidate 2:Follower
-type RaftState struct {
-	role   int32
-	stateC chan int32
-}
+// type RaftState struct {
+// 	role int32
+// }
 
-func (rfs *RaftState) SetState(role int32) {
-	atomic.StoreInt32(&rfs.role, role)
+func (rf *Raft) SetRole(role int32) {
+	atomic.StoreInt32(&rf.role, role)
 }
-func (rfs *RaftState) GetState() int32 {
-	return atomic.LoadInt32(&rfs.role)
+func (rf *Raft) GetRole() int32 {
+	return atomic.LoadInt32(&rf.role)
 }
-func (rfs *RaftState) Turn(role int32) {
-	rfs.stateC <- role
+func (rf *Raft) Turn(role int32) {
+	rf.SetRole(role)
+	// rf.stateC <- role
+	switch role {
+	case 0:
+		go rf.runLeader()
+	case 1:
+		go rf.runCandidate()
+	case 2:
+		go rf.runFollower()
+	}
 }
 
 func (rf *Raft) Run() {
 	go rf.runFollower()
-	for {
-		select {
-		case state := <-rf.state.stateC:
-			{
-				switch state {
-				case 0:
-					rf.state.SetState(0)
-					go rf.runLeader()
-				case 1:
-					rf.state.SetState(1)
-					go rf.runCandidate()
-				case 2:
-					rf.state.SetState(2)
-					go rf.runFollower()
-				}
-			}
-			// case s:= <-x:{}
-		}
-	}
+	// go rf.runCandidate()
 }

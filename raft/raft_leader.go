@@ -26,7 +26,7 @@ func (rf *Raft) runLeader() {
 	var heartbeatFailedNum int = 0
 	var heartbeatCommitNum int = 0
 
-	sendHeartbeat := func(index int, term int64, countC chan count, leaderClosed *int32) {
+	sendHeartbeatRPC := func(index int, term int64, countC chan count, leaderClosed *int32) {
 		reply := AppendEntriesReply{}
 		ok := rf.sendAppendEntries(index, &AppendEntriesArgs{
 			Term: term,
@@ -51,7 +51,7 @@ func (rf *Raft) runLeader() {
 				if i == me {
 					continue
 				}
-				go sendHeartbeat(i, term, countC, &leaderClosed)
+				go sendHeartbeatRPC(i, term, countC, &leaderClosed)
 			}
 		case cnt := <-countC:
 			switch cnt.Kind {
@@ -75,23 +75,23 @@ func (rf *Raft) runLeader() {
 					rf.Log("heartbeat not ok ", heartbeatFailedNum)
 				}
 			}
-		case entry := <-entryC:
+		case entry := <-rf.entryC:
 			rf.Log("!!!Leader get entry!!!, Term:", entry.Req.Term)
 			reply := rf.handleEntry(entry.Req)
 			entry.ReplyC <- reply
 			if reply.Success {
 				rf.Log("Leader get Vote, go Follower")
 				atomic.StoreInt32(&leaderClosed, 1)
-				rf.state.Turn(2)
+				rf.Turn(2)
 				return
 			}
-		case vote := <-voteC:
+		case vote := <-rf.voteC:
 			reply := rf.handleVote(vote.Req)
 			vote.ReplyC <- reply
 			if reply.VoteGranted {
 				rf.Log("Leader get Vote, go Follower, vote.Req.Term:", vote.Req.Term)
 				atomic.StoreInt32(&leaderClosed, 1)
-				rf.state.Turn(2)
+				rf.Turn(2)
 				return
 			}
 		}

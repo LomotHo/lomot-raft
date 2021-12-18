@@ -65,7 +65,10 @@ type Raft struct {
 	// state a Raft server must maintain.
 	currentTerm int64
 	votedFor    int
-	state       RaftState
+	role        int32
+	stateC      chan int32
+	voteC       chan Vote
+	entryC      chan Entry
 	log         []int
 	// commitIndex int
 }
@@ -74,7 +77,7 @@ type Raft struct {
 // believes it is the leader.
 func (rf *Raft) GetState() (int, bool) {
 	var isleader bool = false
-	if rf.state.GetState() == 0 {
+	if rf.GetRole() == 0 {
 		isleader = true
 	}
 	// Your code here (2A).
@@ -205,11 +208,10 @@ func Make(peers []*labrpc.ClientEnd, me int,
 	// Your initialization code here (2A, 2B, 2C).
 	rf.setTerm(1)
 	rf.votedFor = -1
-	rf.state = RaftState{
-		role:   2,
-		stateC: make(chan int32),
-	}
-
+	rf.role = 2
+	rf.stateC = make(chan int32)
+	rf.voteC = make(chan Vote)
+	rf.entryC = make(chan Entry)
 	// initialize from state persisted before a crash
 	rf.readPersist(persister.ReadRaftState())
 
