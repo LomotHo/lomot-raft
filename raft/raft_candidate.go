@@ -20,10 +20,9 @@ func (rf *Raft) ticker() {
 	var voteFinished int32 = 0
 	voteNum := 0
 	tickerVoteC := make(chan bool)
+	voteNum++
 	for i := 0; i < peerNum; i++ {
 		if i == rf.me {
-			voteNum++
-			// rf.Log("vote to self, has voteNum ", voteNum)
 			continue
 		}
 		go func(index int, voteFinished *int32) {

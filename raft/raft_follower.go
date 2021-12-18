@@ -19,8 +19,6 @@ func (rf *Raft) runFollower() {
 			entry.ReplyC <- reply
 			if reply.Success {
 				timer.Reset(heartbeatTimeout)
-			} else {
-				// rf.Log("Follower get old Leader, Term:", entry.Req.Term)
 			}
 		case vote := <-voteC:
 			reply := rf.handleVote(vote.Req)
