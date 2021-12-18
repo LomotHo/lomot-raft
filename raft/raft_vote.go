@@ -5,7 +5,7 @@ import (
 	"time"
 )
 
-const VoteTimeout = 1000
+const VoteTimeout = 500
 const VoteInterval time.Duration = time.Millisecond * 50
 const HeartBeatTimeout = 500
 const HeartBeatInterval time.Duration = time.Millisecond * 50

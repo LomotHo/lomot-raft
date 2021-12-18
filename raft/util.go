@@ -39,15 +39,20 @@ func (rf *Raft) Log(v ...interface{}) {
 	}
 }
 
-func GetRandTimeOffset(id int, timeoutAmount int) int {
-	if Debug {
-		return 10 * id
-	} else {
-		return rand.Intn(timeoutAmount / 5)
-	}
-}
+// func GetRandTimeOffset(id int, timeoutAmount int) int {
+// 	if Debug {
+// 		return 10 * id
+// 	} else {
+// 		return rand.Intn(timeoutAmount / 5)
+// 	}
+// }
 
 func GetRandTime(id int, timeoutAmount int) time.Duration {
-	randOffset := GetRandTimeOffset(id, timeoutAmount)
+	var randOffset int
+	if Debug {
+		randOffset = 10 * id
+	} else {
+		randOffset = rand.Intn(timeoutAmount / 5)
+	}
 	return time.Duration(timeoutAmount+randOffset) * time.Millisecond
 }
