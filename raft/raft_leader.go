@@ -32,7 +32,7 @@ func (rf *Raft) runLeader() {
 			Term: term,
 		}, &reply)
 		if atomic.LoadInt32(leaderClosed) == 1 {
-			rf.Log("close old leader heartbeatTicker func")
+			// rf.Log("close old leader heartbeatTicker func")
 			return
 		} else if ok {
 			countC <- count{Kind: HEARTBEAT_OK, Peer: index}
@@ -96,7 +96,7 @@ func (rf *Raft) runLeader() {
 			}
 		}
 	}
-	rf.Log("Recv rf.killed!")
+	rf.Log("receive rf.killed!")
 	atomic.StoreInt32(&leaderClosed, 1)
 	return
 }

@@ -86,5 +86,6 @@ func (rf *Raft) ticker() {
 			return
 		}
 	}
+	rf.Log("receive rf.killed!")
 	atomic.StoreInt32(&voteFinished, 1)
 }

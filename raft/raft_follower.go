@@ -33,4 +33,5 @@ func (rf *Raft) runFollower() {
 			return
 		}
 	}
+	rf.Log("receive rf.killed!")
 }

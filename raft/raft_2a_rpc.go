@@ -1,8 +1,6 @@
 package raft
 
 import (
-	"fmt"
-	"log"
 	"sync/atomic"
 )
 
@@ -51,23 +49,6 @@ type RequestVoteReply struct {
 }
 
 func (rf *Raft) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) {
-	// Your code here (2A, 2B).
-	// rf.mu.Lock()
-	// defer rf.mu.Unlock()
-	// if args.Term < rf.currentTerm {
-	// 	reply.VoteGranted = false
-	// 	return
-	// }
-	// if rf.votedFor == -1 || rf.votedFor == args.CandidateId {
-	// 	rf.currentTerm = args.Term
-	// 	rf.Log("Granted Vote to ", args.CandidateId)
-	// 	reply.VoteGranted = true
-	// 	rf.votedFor = args.CandidateId
-	// } else {
-	// 	reply.VoteGranted = false
-	// 	return
-	// }
-
 	replyC := make(chan RequestVoteReply)
 	voteC <- Vote{
 		Req:    *args,
@@ -90,26 +71,14 @@ type AppendEntriesReply struct {
 }
 
 func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply) {
-	rf.mu.Lock()
-	defer rf.mu.Unlock()
-	// if rf.currentTerm > args.Term {
-	// 	reply.Success = false
-	// 	return
-	// } else {
-	// 	rf.currentTerm = args.Term
-	// 	HeartBeatC <- true
-	// 	reply.Success = true
-	// 	return
-	// }
-	// rf.currentTerm = args.Term
+	// rf.mu.Lock()
+	// defer rf.mu.Unlock()
 	replyC := make(chan AppendEntriesReply)
 	entryC <- Entry{
 		Req:    *args,
 		ReplyC: replyC,
 	}
 	*reply = <-replyC
-	// HeartBeatC <- true
-	// reply.Success = true
 	return
 }
 
@@ -154,23 +123,5 @@ func (rf *Raft) Run() {
 			}
 			// case s:= <-x:{}
 		}
-	}
-}
-
-func init() {
-	log.SetFlags(log.LstdFlags | log.Lmicroseconds)
-}
-
-func (rf *Raft) Log(v ...interface{}) {
-	if Debug {
-		// rf.mu.Lock()
-		me := rf.me
-		// rf.mu.Unlock()
-		currentTerm := rf.getTerm()
-		state := rf.state.GetState()
-		termColor := currentTerm % 7
-		nodeColor := me%7 + 2
-		log.Println(fmt.Sprintf("\033[4%vm[term%v]\033[0m \033[3%vm[r%vnode%v]\033[0m",
-			termColor, currentTerm, nodeColor, state, me), fmt.Sprint(v...))
 	}
 }
