@@ -237,8 +237,13 @@ func Make(peers []*labrpc.ClientEnd, me int,
 	rf.readPersist(persister.ReadRaftState())
 
 	// start ticker goroutine to start elections
-	// go rf.ticker()
-	go rf.runFollower()
+	go rf.ticker()
 
 	return rf
+}
+
+// The ticker go routine starts a new election if this peer hasn't received
+// heartsbeats recently.
+func (rf *Raft) ticker() {
+	rf.runFollower()
 }

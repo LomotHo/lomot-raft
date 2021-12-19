@@ -13,8 +13,8 @@ type RequestVoteArgs struct {
 	// Your data here (2A, 2B).
 	Term         int64
 	CandidateId  int
-	LastLogIndex int
-	LastLogTerm  int
+	LastLogIndex int64
+	LastLogTerm  int64
 }
 type RequestVoteReply struct {
 	// Your data here (2A).

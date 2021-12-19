@@ -7,12 +7,6 @@ import (
 
 func (rf *Raft) runCandidate() {
 	rf.votedFor = -1
-	rf.ticker()
-}
-
-// The ticker go routine starts a new election if this peer hasn't received
-// heartsbeats recently.
-func (rf *Raft) ticker() {
 	rf.addTerm()
 	peerNum := len(rf.peers)
 	var voteFinished int32 = 0
@@ -23,11 +17,14 @@ func (rf *Raft) ticker() {
 	defer voteTimeoutTimer.Stop()
 	tickerVoteC := make(chan bool)
 
-	sendRequestVoteRPC := func(index int, tickerVoteC chan bool, voteFinished *int32) {
+	sendRequestVoteRPC := func(index int, voteFinished *int32, tickerVoteC chan bool) {
 		reply := RequestVoteReply{}
+		lastLogIndex := atomic.LoadInt64(&rf.lastApplied)
 		if ok := rf.sendRequestVote(index, &RequestVoteArgs{
-			Term:        rf.getTerm(),
-			CandidateId: rf.me,
+			Term:         rf.getTerm(),
+			CandidateId:  rf.me,
+			LastLogIndex: lastLogIndex,
+			LastLogTerm:  atomic.LoadInt64(&rf.logs[lastLogIndex].Term),
 		}, &reply); ok {
 			if atomic.LoadInt32(voteFinished) == 1 {
 				return
@@ -42,7 +39,7 @@ func (rf *Raft) ticker() {
 		if i == rf.me {
 			continue
 		}
-		go sendRequestVoteRPC(i, tickerVoteC, &voteFinished)
+		go sendRequestVoteRPC(i, &voteFinished, tickerVoteC)
 	}
 
 	for !rf.killed() {
