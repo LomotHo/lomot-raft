@@ -22,6 +22,8 @@ func init() {
 	log.SetFlags(log.LstdFlags | log.Lmicroseconds)
 	if debug := os.Getenv("GO_DEBUG"); debug == "1" {
 		Debug = true
+		VoteTimeout = 500
+		HeartBeatTimeout = 500
 	}
 }
 
@@ -55,4 +57,8 @@ func GetRandTime(id int, timeoutAmount int) time.Duration {
 		randOffset = rand.Intn(timeoutAmount / 5)
 	}
 	return time.Duration(timeoutAmount+randOffset) * time.Millisecond
+}
+
+func GetTimeInterval(timeoutAmount int) time.Duration {
+	return time.Duration(timeoutAmount/10) * time.Millisecond
 }

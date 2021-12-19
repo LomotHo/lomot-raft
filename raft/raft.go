@@ -20,6 +20,7 @@ package raft
 import (
 	//	"bytes"
 
+	"fmt"
 	"sync"
 	"sync/atomic"
 
@@ -69,18 +70,22 @@ type Raft struct {
 	stateC      chan int32
 	voteC       chan Vote
 	entryC      chan Entry
+	commandC    chan string
 	log         []int
+	commitIndex int
+	lastApplied int
+
 	// commitIndex int
 }
 
 // return currentTerm and whether this server
 // believes it is the leader.
 func (rf *Raft) GetState() (int, bool) {
+	// Your code here (2A).
 	var isleader bool = false
 	if rf.GetRole() == 0 {
 		isleader = true
 	}
-	// Your code here (2A).
 	return int(rf.getTerm()), isleader
 }
 
@@ -159,12 +164,16 @@ func (rf *Raft) Snapshot(index int, snapshot []byte) {
 //
 func (rf *Raft) Start(command interface{}) (int, int, bool) {
 	index := -1
-	term := -1
-	isLeader := true
-
 	// Your code here (2B).
-
-	return index, term, isLeader
+	isLeader := false
+	if rf.GetRole() == 0 {
+		isLeader = true
+	}
+	if isLeader {
+		// rf.Log(command)
+		rf.commandC <- fmt.Sprintf("%v", command)
+	}
+	return index, int(rf.getTerm()), isLeader
 }
 
 //
@@ -212,12 +221,18 @@ func Make(peers []*labrpc.ClientEnd, me int,
 	rf.stateC = make(chan int32)
 	rf.voteC = make(chan Vote)
 	rf.entryC = make(chan Entry)
+	rf.commandC = make(chan string, 1024)
+	// rf.log = make([]int)
+	rf.commitIndex = 0
+	rf.lastApplied = 0
+
 	// initialize from state persisted before a crash
 	rf.readPersist(persister.ReadRaftState())
 
 	// start ticker goroutine to start elections
 	// go rf.ticker()
-	go rf.Run()
+	// go rf.Run()
+	go rf.runFollower()
 
 	return rf
 }

@@ -16,7 +16,7 @@ func (rf *Raft) runLeader() {
 		HEARTBEAT_OK     countType = 1
 	)
 	var countC = make(chan count, 1024)
-	heartbeatTicker := time.NewTicker(HeartBeatInterval)
+	heartbeatTicker := time.NewTicker(GetTimeInterval(HeartBeatTimeout))
 	defer heartbeatTicker.Stop()
 	var leaderClosed int32 = 0
 	term := rf.getTerm()
@@ -26,18 +26,18 @@ func (rf *Raft) runLeader() {
 	var heartbeatFailedNum int = 0
 	var heartbeatCommitNum int = 0
 
-	sendHeartbeatRPC := func(index int, term int64, countC chan count, leaderClosed *int32) {
+	sendHeartbeatRPC := func(serverId int, term int64, countC chan count, leaderClosed *int32) {
 		reply := AppendEntriesReply{}
-		ok := rf.sendAppendEntries(index, &AppendEntriesArgs{
+		ok := rf.sendAppendEntries(serverId, &AppendEntriesArgs{
 			Term: term,
 		}, &reply)
 		if atomic.LoadInt32(leaderClosed) == 1 {
 			// rf.Log("close old leader heartbeatTicker func")
 			return
 		} else if ok {
-			countC <- count{Kind: HEARTBEAT_OK, Peer: index}
+			countC <- count{Kind: HEARTBEAT_OK, Peer: serverId}
 		} else {
-			countC <- count{Kind: HEARTBEAT_FAILED, Peer: index}
+			countC <- count{Kind: HEARTBEAT_FAILED, Peer: serverId}
 		}
 	}
 
@@ -93,6 +93,22 @@ func (rf *Raft) runLeader() {
 				atomic.StoreInt32(&leaderClosed, 1)
 				rf.Turn(2)
 				return
+			}
+		case command := <-rf.commandC:
+			rf.Log(command)
+			for i := 0; i < peerNum; i++ {
+				if i == me {
+					continue
+				}
+				go func(serverId int, term int64, leaderClosed *int32) {
+					reply := AppendEntriesReply{}
+					ok := rf.sendAppendEntries(serverId, &AppendEntriesArgs{
+						Term: term,
+					}, &reply)
+					if ok {
+						rf.Log("log reply", reply)
+					}
+				}(i, term, &leaderClosed)
 			}
 		}
 	}

@@ -2,37 +2,47 @@ package raft
 
 import (
 	"sync/atomic"
-	"time"
 )
 
-const VoteTimeout = 500
-const VoteInterval time.Duration = time.Millisecond * 50
-const HeartBeatTimeout = 500
-const HeartBeatInterval time.Duration = time.Millisecond * 50
+// const VoteInterval time.Duration = time.Millisecond * 5
+// const HeartBeatInterval time.Duration = time.Millisecond * 5
+var VoteTimeout = 100
+var HeartBeatTimeout = 100
 
 type Vote struct {
 	Req    RequestVoteArgs
 	ReplyC chan RequestVoteReply
 }
-type Entry struct {
-	Req    AppendEntriesArgs
-	ReplyC chan AppendEntriesReply
+
+type RequestVoteArgs struct {
+	// Your data here (2A, 2B).
+	Term         int64
+	CandidateId  int
+	LastLogIndex int
+	LastLogTerm  int
 }
 
-func (rf *Raft) handleEntry(req AppendEntriesArgs) AppendEntriesReply {
-	currentTerm := rf.getTerm()
-	if currentTerm <= req.Term {
-		rf.setTerm(req.Term)
-		return AppendEntriesReply{
-			Term:    req.Term,
-			Success: true,
-		}
-	} else {
-		return AppendEntriesReply{
-			Term:    currentTerm,
-			Success: false,
-		}
+type RequestVoteReply struct {
+	// Your data here (2A).
+	Term        int64
+	VoteGranted bool
+}
+
+func (rf *Raft) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) {
+	if rf.killed() {
+		return
 	}
+	replyC := make(chan RequestVoteReply)
+	rf.voteC <- Vote{
+		Req:    *args,
+		ReplyC: replyC,
+	}
+	*reply = <-replyC
+}
+
+func (rf *Raft) sendRequestVote(server int, args *RequestVoteArgs, reply *RequestVoteReply) bool {
+	ok := rf.peers[server].Call("Raft.RequestVote", args, reply)
+	return ok
 }
 
 func (rf *Raft) handleVote(req RequestVoteArgs) RequestVoteReply {
@@ -64,4 +74,28 @@ func (rf *Raft) getTerm() int64 {
 
 func (rf *Raft) addTerm() {
 	atomic.AddInt64(&rf.currentTerm, 1)
+}
+
+func (rf *Raft) SetRole(role int32) {
+	atomic.StoreInt32(&rf.role, role)
+}
+func (rf *Raft) GetRole() int32 {
+	return atomic.LoadInt32(&rf.role)
+}
+
+// role 0:Leader 1:Candidate 2:Follower
+// type RaftState struct {
+// 	role int32
+// }
+func (rf *Raft) Turn(role int32) {
+	rf.SetRole(role)
+	// rf.stateC <- role
+	switch role {
+	case 0:
+		go rf.runLeader()
+	case 1:
+		go rf.runCandidate()
+	case 2:
+		go rf.runFollower()
+	}
 }
