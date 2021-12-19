@@ -5,6 +5,7 @@ import (
 	"log"
 	"math/rand"
 	"os"
+	"sync/atomic"
 	"time"
 )
 
@@ -30,14 +31,16 @@ func init() {
 func (rf *Raft) Log(v ...interface{}) {
 	if Debug {
 		// rf.mu.Lock()
-		me := rf.me
 		// rf.mu.Unlock()
+		commitIndex := atomic.LoadInt64(&rf.commitIndex)
+		lastApplied := atomic.LoadInt64(&rf.lastApplied)
+		me := rf.me
 		currentTerm := rf.getTerm()
 		state := rf.GetRole()
 		termColor := currentTerm % 7
 		nodeColor := me%7 + 2
-		log.Println(fmt.Sprintf("\033[4%vm[term%v]\033[0m \033[3%vm[r%vnode%v]\033[0m",
-			termColor, currentTerm, nodeColor, state, me), fmt.Sprint(v...))
+		log.Println(fmt.Sprintf("\033[4%vm[term%v]\033[0m\033[3%vm[r%vnode%v][%v-%v]\033[0m",
+			termColor, currentTerm, nodeColor, state, me, commitIndex, lastApplied), fmt.Sprint(v...))
 	}
 }
 

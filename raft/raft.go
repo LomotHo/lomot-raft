@@ -20,7 +20,6 @@ package raft
 import (
 	//	"bytes"
 
-	"fmt"
 	"sync"
 	"sync/atomic"
 
@@ -67,15 +66,17 @@ type Raft struct {
 	currentTerm int64
 	votedFor    int
 	role        int32
+	leaderId    int
 	stateC      chan int32
-	voteC       chan Vote
+	voteC       chan RequestVoteWarp
 	entryC      chan AppendEntryWarp
-	commandC    chan string
-	logs        []string
-	commitIndex int
-	lastApplied int
-	nextIndex   []int
-	matchIndex  []int
+	commandC    chan interface{}
+	applyCh     chan ApplyMsg
+	logs        []Entry
+	commitIndex int64
+	lastApplied int64
+	nextIndex   []int64
+	matchIndex  []int64
 	// commitIndex int
 }
 
@@ -164,7 +165,7 @@ func (rf *Raft) Snapshot(index int, snapshot []byte) {
 // the leader.
 //
 func (rf *Raft) Start(command interface{}) (int, int, bool) {
-	index := -1
+	index := int(atomic.LoadInt64(&rf.lastApplied) + 1)
 	// Your code here (2B).
 	isLeader := false
 	if rf.GetRole() == 0 {
@@ -172,7 +173,8 @@ func (rf *Raft) Start(command interface{}) (int, int, bool) {
 	}
 	if isLeader {
 		// rf.Log(command)
-		rf.commandC <- fmt.Sprintf("%v", command)
+		// rf.commandC <- fmt.Sprintf("%v", command)
+		rf.commandC <- command
 	}
 	return index, int(rf.getTerm()), isLeader
 }
@@ -220,19 +222,22 @@ func Make(peers []*labrpc.ClientEnd, me int,
 	rf.votedFor = -1
 	rf.role = 2
 	rf.stateC = make(chan int32)
-	rf.voteC = make(chan Vote)
+	rf.voteC = make(chan RequestVoteWarp)
 	rf.entryC = make(chan AppendEntryWarp)
-	rf.commandC = make(chan string, 1024)
-	// rf.log = make([]int)
+	rf.commandC = make(chan interface{}, 1024)
+	rf.applyCh = applyCh
 	rf.commitIndex = 0
 	rf.lastApplied = 0
+	// rf.logs = make([]Entry)
+	rf.logs = append(rf.logs, Entry{Term: 1, Command: 0})
+	rf.matchIndex = make([]int64, len(peers))
+	rf.nextIndex = make([]int64, len(peers))
 
 	// initialize from state persisted before a crash
 	rf.readPersist(persister.ReadRaftState())
 
 	// start ticker goroutine to start elections
 	// go rf.ticker()
-	// go rf.Run()
 	go rf.runFollower()
 
 	return rf

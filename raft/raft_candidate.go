@@ -29,11 +29,11 @@ func (rf *Raft) ticker() {
 			Term:        rf.getTerm(),
 			CandidateId: rf.me,
 		}, &reply); ok {
+			if atomic.LoadInt32(voteFinished) == 1 {
+				return
+			}
 			rf.Log("vote reply from ", index, reply)
 			if reply.VoteGranted {
-				if atomic.LoadInt32(voteFinished) == 1 {
-					return
-				}
 				tickerVoteC <- true
 			}
 		}

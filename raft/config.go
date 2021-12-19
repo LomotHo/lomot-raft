@@ -308,7 +308,7 @@ func (cfg *config) cleanup() {
 // attach server i to the net.
 func (cfg *config) connect(i int) {
 	// fmt.Printf("connect(%d)\n", i)
-	log.Println("connect ", i)
+	// log.Println("connect ", i)
 
 	cfg.connected[i] = true
 
@@ -332,7 +332,7 @@ func (cfg *config) connect(i int) {
 // detach server i from the net.
 func (cfg *config) disconnect(i int) {
 	// fmt.Printf("disconnect(%d)\n", i)
-	log.Println("disconnect ", i)
+	// log.Println("disconnect ", i)
 
 	cfg.connected[i] = false
 
@@ -447,7 +447,6 @@ func (cfg *config) nCommitted(index int) (int, interface{}) {
 		cfg.mu.Lock()
 		cmd1, ok := cfg.logs[i][index]
 		cfg.mu.Unlock()
-
 		if ok {
 			if count > 0 && cmd != cmd1 {
 				cfg.t.Fatalf("committed values do not match: index %v, %v, %v\n",
@@ -532,9 +531,13 @@ func (cfg *config) one(cmd interface{}, expectedServers int, retry bool) int {
 			t1 := time.Now()
 			for time.Since(t1).Seconds() < 2 {
 				nd, cmd1 := cfg.nCommitted(index)
+				// log.Println(index, nd, cmd1)
+				// log.Println("command type: ", reflect.TypeOf(cmd), reflect.TypeOf(cmd1))
+
 				if nd > 0 && nd >= expectedServers {
 					// committed
 					if cmd1 == cmd {
+						// log.Println(cmd, cmd1)
 						// and it was the command we submitted.
 						return index
 					}

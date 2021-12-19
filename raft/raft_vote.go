@@ -9,11 +9,6 @@ import (
 var VoteTimeout = 100
 var HeartBeatTimeout = 100
 
-type Vote struct {
-	Req    RequestVoteArgs
-	ReplyC chan RequestVoteReply
-}
-
 type RequestVoteArgs struct {
 	// Your data here (2A, 2B).
 	Term         int64
@@ -21,11 +16,14 @@ type RequestVoteArgs struct {
 	LastLogIndex int
 	LastLogTerm  int
 }
-
 type RequestVoteReply struct {
 	// Your data here (2A).
 	Term        int64
 	VoteGranted bool
+}
+type RequestVoteWarp struct {
+	Req    RequestVoteArgs
+	ReplyC chan RequestVoteReply
 }
 
 func (rf *Raft) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) {
@@ -33,7 +31,7 @@ func (rf *Raft) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) {
 		return
 	}
 	replyC := make(chan RequestVoteReply)
-	rf.voteC <- Vote{
+	rf.voteC <- RequestVoteWarp{
 		Req:    *args,
 		ReplyC: replyC,
 	}
@@ -92,6 +90,7 @@ func (rf *Raft) Turn(role int32) {
 	// rf.stateC <- role
 	switch role {
 	case 0:
+		rf.leaderId = rf.me
 		go rf.runLeader()
 	case 1:
 		go rf.runCandidate()
