@@ -1,6 +1,6 @@
 package raft
 
-type Entry struct {
+type AppendEntryWarp struct {
 	Req    AppendEntriesArgs
 	ReplyC chan AppendEntriesReply
 }
@@ -25,7 +25,7 @@ func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply
 		return
 	}
 	replyC := make(chan AppendEntriesReply)
-	rf.entryC <- Entry{
+	rf.entryC <- AppendEntryWarp{
 		Req:    *args,
 		ReplyC: replyC,
 	}

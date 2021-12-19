@@ -69,12 +69,13 @@ type Raft struct {
 	role        int32
 	stateC      chan int32
 	voteC       chan Vote
-	entryC      chan Entry
+	entryC      chan AppendEntryWarp
 	commandC    chan string
-	log         []int
+	logs        []string
 	commitIndex int
 	lastApplied int
-
+	nextIndex   []int
+	matchIndex  []int
 	// commitIndex int
 }
 
@@ -220,7 +221,7 @@ func Make(peers []*labrpc.ClientEnd, me int,
 	rf.role = 2
 	rf.stateC = make(chan int32)
 	rf.voteC = make(chan Vote)
-	rf.entryC = make(chan Entry)
+	rf.entryC = make(chan AppendEntryWarp)
 	rf.commandC = make(chan string, 1024)
 	// rf.log = make([]int)
 	rf.commitIndex = 0

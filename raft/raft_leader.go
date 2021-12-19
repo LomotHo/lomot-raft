@@ -96,6 +96,8 @@ func (rf *Raft) runLeader() {
 			}
 		case command := <-rf.commandC:
 			rf.Log(command)
+			// rf.lastApplied++
+			// rf.logs[rf.lastApplied] = command
 			for i := 0; i < peerNum; i++ {
 				if i == me {
 					continue
