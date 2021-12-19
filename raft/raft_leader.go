@@ -87,7 +87,7 @@ func (rf *Raft) runLeader() {
 			case APPEND_ENTRIES_OK:
 				// rf.matchIndex[cnt.Peer] += cnt.Size
 				atomic.AddInt64(&rf.matchIndex[cnt.Peer], int64(cnt.Size))
-				rf.Log("APPEND_ENTRIES_OK", rf.commitIndex)
+				// rf.Log("APPEND_ENTRIES_OK", rf.commitIndex)
 				for i := rf.commitIndex; i < rf.lastApplied; i++ {
 					entriesOkCnt := 0
 					for _, peerIndex := range rf.matchIndex {
@@ -101,14 +101,12 @@ func (rf *Raft) runLeader() {
 									Command:      rf.logs[rf.commitIndex].Command,
 									CommandIndex: int(rf.commitIndex),
 								}
-								rf.Log("log commited", rf.logs)
+								rf.Log("leader commited", rf.logs[1:])
 								break
 							}
 						}
 					}
 				}
-				rf.Log("master log", rf.logs)
-
 			case APPEND_ENTRIES_FAILED:
 				appendEntriesFailedNum++
 				if appendEntriesFailedNum%10 == 0 {
@@ -143,17 +141,13 @@ func (rf *Raft) runLeader() {
 			// 	log.Panic("err type of command")
 			// }
 			entry := Entry{Term: term, Command: command}
-
 			atomic.AddInt64(&rf.lastApplied, 1)
-			// rf.lastApplied++
 			rf.logs = append(rf.logs, entry)
 			index := len(rf.logs)
-			// rf.nextIndex[rf.me] = index + 1
-			// rf.matchIndex[rf.me] = index
 			atomic.StoreInt64(&rf.nextIndex[rf.me], int64(index+1))
 			atomic.StoreInt64(&rf.matchIndex[rf.me], int64(index))
 
-			rf.Log(rf.logs)
+			rf.Log("new log: ", rf.logs[1:])
 			for i := 0; i < peerNum; i++ {
 				if i == me {
 					continue
