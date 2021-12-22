@@ -37,11 +37,41 @@ func (rf *Raft) sendAppendEntriesRPC(serverId int, leaderClosed *int32, countC c
 	}
 }
 
+// func (rf *Raft) sendAppendEntriesTick(serverId int, leaderClosed *int32, countC chan appendEntriesCount) {
+// 	heartbeatTicker := time.NewTicker(GetTimeInterval(HeartBeatTimeout))
+// 	defer heartbeatTicker.Stop()
+// 	term := rf.getTerm()
+// 	me := rf.me
+// 	for !rf.killed() {
+// 		select {
+// 		case <-heartbeatTicker.C:
+// 			peerIndex := rf.nextIndex[serverId]
+// 			args := AppendEntriesArgs{
+// 				Term:         term,
+// 				LeaderId:     me,
+// 				Entries:      rf.logs[peerIndex+1:],
+// 				LeaderCommit: rf.commitIndex,
+// 				PrevLogIndex: peerIndex,
+// 				PrevLogTerm:  rf.logs[peerIndex].Term,
+// 			}
+// 			reply := AppendEntriesReply{}
+// 			if ok := rf.sendAppendEntries(serverId, &args, &reply); ok {
+
+// 			}
+// 		}
+// 	}
+// }
+
 func (rf *Raft) runLeader() {
 	term := rf.getTerm()
 	me := rf.me
 	peerNum := len(rf.peers)
-
+	for i := 0; i < len(rf.peers); i++ {
+		rf.matchIndex[i] = 0
+		if rf.commitIndex > 1 {
+			rf.nextIndex[i] = rf.commitIndex
+		}
+	}
 	var appendEntriesCountC = make(chan appendEntriesCount, 1024)
 	heartbeatTicker := time.NewTicker(GetTimeInterval(HeartBeatTimeout))
 	defer heartbeatTicker.Stop()
@@ -62,14 +92,14 @@ func (rf *Raft) runLeader() {
 				if i == me {
 					continue
 				}
-				peerIndex := rf.matchIndex[i]
+				nextIndex := rf.nextIndex[i]
 				args := AppendEntriesArgs{
 					Term:         term,
 					LeaderId:     me,
-					Entries:      rf.logs[peerIndex+1:],
+					Entries:      rf.logs[nextIndex:],
 					LeaderCommit: rf.commitIndex,
-					PrevLogIndex: peerIndex,
-					PrevLogTerm:  rf.logs[peerIndex].Term,
+					PrevLogIndex: nextIndex - 1,
+					PrevLogTerm:  rf.logs[nextIndex-1].Term,
 				}
 				go rf.sendAppendEntriesRPC(i, &leaderClosed, appendEntriesCountC, &args)
 			}
@@ -98,6 +128,7 @@ func (rf *Raft) runLeader() {
 			case APPEND_ENTRIES_OK:
 				// rf.matchIndex[cnt.Peer] += cnt.Size
 				atomic.AddInt64(&rf.matchIndex[cnt.Peer], int64(cnt.Size))
+				atomic.AddInt64(&rf.nextIndex[cnt.Peer], int64(cnt.Size))
 				// rf.Log("APPEND_ENTRIES_OK", rf.commitIndex)
 				for i := rf.commitIndex; i < rf.lastApplied; i++ {
 					entriesOkCnt := 0
@@ -122,6 +153,12 @@ func (rf *Raft) runLeader() {
 				appendEntriesFailedNum++
 				if appendEntriesFailedNum%10 == 0 {
 					rf.Log("appendEntries not ok ", appendEntriesFailedNum)
+				}
+				if rf.nextIndex[cnt.Peer] > 1 {
+					rf.nextIndex[cnt.Peer]--
+					if rf.nextIndex[cnt.Peer] <= rf.matchIndex[cnt.Peer] {
+						rf.matchIndex[cnt.Peer]--
+					}
 				}
 			}
 		case entry := <-rf.entryC:

@@ -230,8 +230,12 @@ func Make(peers []*labrpc.ClientEnd, me int,
 	rf.lastApplied = 0
 	// rf.logs = make([]Entry)
 	rf.logs = append(rf.logs, Entry{Term: 1, Command: 0})
-	rf.matchIndex = make([]int64, len(peers))
-	rf.nextIndex = make([]int64, len(peers))
+	rf.matchIndex = make([]int64, len(rf.peers))
+	rf.nextIndex = make([]int64, len(rf.peers))
+	for i := 0; i < len(peers); i++ {
+		rf.matchIndex[i] = 0
+		rf.nextIndex[i] = 1
+	}
 
 	// initialize from state persisted before a crash
 	rf.readPersist(persister.ReadRaftState())
