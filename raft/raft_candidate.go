@@ -6,12 +6,11 @@ import (
 )
 
 func (rf *Raft) runCandidate() {
-	rf.votedFor = -1
 	rf.addTerm()
-	peerNum := len(rf.peers)
-	var voteFinished int32 = 0
 	rf.votedFor = rf.me
 	// Candidate vote to self
+	peerNum := len(rf.peers)
+	var voteFinished int32 = 0
 	voteNum := 1
 	voteTimeoutTimer := time.NewTimer(GetRandTime(rf.me, VoteTimeout))
 	defer voteTimeoutTimer.Stop()

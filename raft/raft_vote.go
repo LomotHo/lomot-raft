@@ -47,19 +47,31 @@ func (rf *Raft) handleVote(req RequestVoteArgs) RequestVoteReply {
 	currentTerm := rf.getTerm()
 	// currentTerm < req.Term && (rf.votedFor == -1 || rf.votedFor == req.CandidateId)
 	if currentTerm < req.Term {
-		rf.Log("Granted Vote to ", req.CandidateId, " currentTerm: ", currentTerm, " req.Term ", req.Term)
 		rf.setTerm(req.Term)
-		rf.votedFor = req.CandidateId
-		return RequestVoteReply{
-			Term:        req.Term,
-			VoteGranted: true,
-		}
-	} else {
-		return RequestVoteReply{
-			Term:        currentTerm,
-			VoteGranted: false,
-		}
+		currentTerm = req.Term
+		rf.votedFor = -1
 	}
+	if currentTerm == req.Term && rf.votedFor == -1 {
+		// if rf.votedFor == -1 {
+		rf.Log("req.LastLogTerm: ", req.LastLogTerm, "| rf.logs[rf.lastApplied].Term: ", rf.logs[rf.lastApplied].Term,
+			"| req.LastLogIndex: ", req.LastLogIndex, "| rf.lastApplied: ", rf.lastApplied)
+
+		if req.LastLogTerm > rf.logs[rf.lastApplied].Term ||
+			(req.LastLogTerm == rf.logs[rf.lastApplied].Term && req.LastLogIndex >= rf.lastApplied) {
+			rf.Log("Granted Vote to ", req.CandidateId, " currentTerm: ", currentTerm, " req.Term ", req.Term)
+			rf.votedFor = req.CandidateId
+			return RequestVoteReply{
+				Term:        req.Term,
+				VoteGranted: true,
+			}
+		}
+		// }
+	}
+	return RequestVoteReply{
+		Term:        currentTerm,
+		VoteGranted: false,
+	}
+
 }
 
 func (rf *Raft) setTerm(term int64) {

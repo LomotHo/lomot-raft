@@ -7,10 +7,10 @@ import (
 
 type appendEntriesCountType int
 type appendEntriesCount struct {
-	Kind appendEntriesCountType
-	Peer int
-	// Index int
-	Size int
+	Kind         appendEntriesCountType
+	Peer         int
+	AppliedIndex int64
+	Size         int
 }
 
 const (
@@ -28,7 +28,7 @@ func (rf *Raft) sendAppendEntriesRPC(serverId int, leaderClosed *int32, countC c
 	}
 	if ok && reply.Success {
 		if len(args.Entries) != 0 {
-			countC <- appendEntriesCount{Kind: APPEND_ENTRIES_OK, Peer: serverId, Size: len(args.Entries)}
+			countC <- appendEntriesCount{Kind: APPEND_ENTRIES_OK, Peer: serverId, AppliedIndex: args.PrevLogIndex + int64(len(args.Entries))}
 		} else {
 			countC <- appendEntriesCount{Kind: HEARTBEAT_OK, Peer: serverId}
 		}
@@ -126,9 +126,9 @@ func (rf *Raft) runLeader() {
 			// 		rf.Log("heartbeat not ok ", heartbeatFailedNum)
 			// 	}
 			case APPEND_ENTRIES_OK:
-				// rf.matchIndex[cnt.Peer] += cnt.Size
-				atomic.AddInt64(&rf.matchIndex[cnt.Peer], int64(cnt.Size))
-				atomic.AddInt64(&rf.nextIndex[cnt.Peer], int64(cnt.Size))
+				// atomic.AddInt64(&rf.nextIndex[cnt.Peer], int64(cnt.Size))
+				atomic.StoreInt64(&rf.matchIndex[cnt.Peer], cnt.AppliedIndex)
+				atomic.StoreInt64(&rf.nextIndex[cnt.Peer], cnt.AppliedIndex+1)
 				// rf.Log("APPEND_ENTRIES_OK", rf.commitIndex)
 				for i := rf.commitIndex; i < rf.lastApplied; i++ {
 					entriesOkCnt := 0
@@ -174,7 +174,7 @@ func (rf *Raft) runLeader() {
 		case vote := <-rf.voteC:
 			reply := rf.handleVote(vote.Req)
 			vote.ReplyC <- reply
-			if reply.VoteGranted {
+			if reply.VoteGranted || reply.Term > rf.currentTerm {
 				rf.Log("Leader get Vote, go Follower, vote.Req.Term:", vote.Req.Term)
 				atomic.StoreInt32(&leaderClosed, 1)
 				rf.Turn(2)

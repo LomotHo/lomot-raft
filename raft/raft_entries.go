@@ -1,6 +1,8 @@
 package raft
 
-import "sync/atomic"
+import (
+	"sync/atomic"
+)
 
 type Entry struct {
 	Term int64
@@ -46,35 +48,43 @@ func (rf *Raft) handleEntry(req AppendEntriesArgs) AppendEntriesReply {
 	currentTerm := rf.getTerm()
 	if currentTerm <= req.Term {
 		rf.setTerm(req.Term)
+		rf.votedFor = -1
 		rf.leaderId = req.LeaderId
-		if req.LeaderCommit > rf.commitIndex {
-			if rf.lastApplied < req.LeaderCommit {
-				rf.commitIndex = rf.lastApplied
-			} else {
-				rf.commitIndex = req.LeaderCommit
+		// rf.Log("req: ", req)
+		if rf.lastApplied >= req.PrevLogIndex && rf.logs[rf.lastApplied].Term == req.PrevLogTerm {
+			// check commit
+			if req.LeaderCommit > rf.commitIndex && rf.lastApplied > rf.commitIndex {
+				oldCommitIndex := rf.commitIndex
+				if req.LeaderCommit > rf.lastApplied {
+					rf.commitIndex = rf.lastApplied
+				} else {
+					rf.commitIndex = req.LeaderCommit
+				}
+				for i := oldCommitIndex + 1; i <= rf.commitIndex; i++ {
+					rf.applyCh <- ApplyMsg{
+						CommandValid: true,
+						Command:      rf.logs[i].Command,
+						CommandIndex: int(i),
+					}
+					rf.Log("log commited", rf.logs[i])
+				}
 			}
-			rf.applyCh <- ApplyMsg{
-				CommandValid: true,
-				Command:      rf.logs[rf.commitIndex].Command,
-				CommandIndex: int(rf.commitIndex),
-			}
-			rf.Log("log commited", rf.logs[1:])
-		}
-		if len(req.Entries) != 0 {
-			// if req.PrevLogIndex ==-1 {}
-			// rf.Log(req.PrevLogIndex, rf.lastApplied, req.PrevLogTerm, rf.logs[rf.lastApplied].Term)
-			if req.PrevLogIndex == rf.lastApplied && req.PrevLogTerm == rf.logs[rf.lastApplied].Term {
-				rf.logs = append(rf.logs, req.Entries...)
+			if len(req.Entries) != 0 {
+				rf.logs = append(rf.logs[:req.PrevLogIndex+1], req.Entries...)
 				// rf.lastApplied += len(req.Entries)
 				// rf.commitIndex = req.LeaderCommit
-				atomic.AddInt64(&rf.lastApplied, int64(len(req.Entries)))
-				atomic.StoreInt64(&rf.commitIndex, req.LeaderCommit)
+				atomic.StoreInt64(&rf.lastApplied, req.PrevLogIndex+int64(len(req.Entries)))
+				// atomic.StoreInt64(&rf.commitIndex, req.LeaderCommit)
 				rf.Log("log appended", rf.logs[1:])
+			}
+			return AppendEntriesReply{
+				Term:    req.Term,
+				Success: true,
 			}
 		}
 		return AppendEntriesReply{
-			Term:    req.Term,
-			Success: true,
+			Term:    currentTerm,
+			Success: false,
 		}
 	} else {
 		return AppendEntriesReply{
