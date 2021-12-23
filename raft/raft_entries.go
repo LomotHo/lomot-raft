@@ -47,9 +47,18 @@ func (rf *Raft) sendAppendEntries(server int, args *AppendEntriesArgs, reply *Ap
 
 func (rf *Raft) handleEntry(req AppendEntriesArgs) AppendEntriesReply {
 	currentTerm := rf.getTerm()
+
 	if currentTerm <= req.Term {
 		rf.setTerm(req.Term)
 		rf.votedFor = -1
+		// } else {
+		// 	return AppendEntriesReply{
+		// 		Term:      currentTerm,
+		// 		Success:   false,
+		// 		DebugInfo: "old term",
+		// 	}
+		// }
+		// if rf.GetRole() != 0 {
 		rf.leaderId = req.LeaderId
 		// rf.Log("req: ", req)
 		if rf.lastApplied >= req.PrevLogIndex && rf.logs[req.PrevLogIndex].Term == req.PrevLogTerm {
@@ -59,7 +68,8 @@ func (rf *Raft) handleEntry(req AppendEntriesArgs) AppendEntriesReply {
 				// rf.commitIndex = req.LeaderCommit
 				atomic.StoreInt64(&rf.lastApplied, req.PrevLogIndex+int64(len(req.Entries)))
 				// atomic.StoreInt64(&rf.commitIndex, req.LeaderCommit)
-				rf.Log("log appended", rf.logs[1:])
+				// rf.Log("log appended", rf.logs[1:])
+				rf.Log("log appended", req.Entries)
 			}
 			// check commit
 			if req.LeaderCommit > rf.commitIndex && rf.lastApplied > rf.commitIndex {
@@ -83,7 +93,7 @@ func (rf *Raft) handleEntry(req AppendEntriesArgs) AppendEntriesReply {
 				Success: true,
 			}
 		}
-		rf.Log("PrevLogIndex err req: ", req, " log: ", rf.logs)
+		// rf.Log("PrevLogIndex err req: ", req, " log: ", rf.logs)
 		return AppendEntriesReply{
 			Term:      currentTerm,
 			Success:   false,
@@ -93,7 +103,7 @@ func (rf *Raft) handleEntry(req AppendEntriesArgs) AppendEntriesReply {
 		return AppendEntriesReply{
 			Term:      currentTerm,
 			Success:   false,
-			DebugInfo: "old term",
+			DebugInfo: "master get newer entries",
 		}
 	}
 }

@@ -5,6 +5,14 @@ import (
 	"time"
 )
 
+// The ticker go routine starts a new election if this peer hasn't received
+// heartsbeats recently.
+func (rf *Raft) ticker() {
+	// GetRandTime(rf.me, VoteTimeout)
+	// rf.runCandidate()
+	rf.runFollower()
+}
+
 func (rf *Raft) runCandidate() {
 	rf.addTerm()
 	rf.votedFor = rf.me

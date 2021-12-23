@@ -6,8 +6,8 @@ import (
 
 // const VoteInterval time.Duration = time.Millisecond * 5
 // const HeartBeatInterval time.Duration = time.Millisecond * 5
-var VoteTimeout = 100
-var HeartBeatTimeout = 100
+var VoteTimeout = 500
+var HeartBeatTimeout = 500
 
 type RequestVoteArgs struct {
 	// Your data here (2A, 2B).

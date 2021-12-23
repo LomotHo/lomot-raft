@@ -155,10 +155,12 @@ func (rf *Raft) runLeader() {
 				if appendEntriesFailedNum%10 == 0 {
 					rf.Log("appendEntries FAILED ", appendEntriesFailedNum)
 				}
-				if rf.nextIndex[cnt.Peer] > 1 {
-					rf.nextIndex[cnt.Peer]--
-					if rf.nextIndex[cnt.Peer] <= rf.matchIndex[cnt.Peer] {
-						rf.matchIndex[cnt.Peer]--
+				nextIndex := atomic.LoadInt64(&rf.nextIndex[cnt.Peer])
+				matchIndex := atomic.LoadInt64(&rf.matchIndex[cnt.Peer])
+				if nextIndex > 1 {
+					atomic.StoreInt64(&rf.nextIndex[cnt.Peer], nextIndex/2)
+					if nextIndex/2 <= matchIndex {
+						atomic.StoreInt64(&rf.matchIndex[cnt.Peer], nextIndex/2-1)
 					}
 				}
 			}
@@ -196,7 +198,8 @@ func (rf *Raft) runLeader() {
 			index := len(rf.logs)
 			atomic.StoreInt64(&rf.nextIndex[rf.me], int64(index+1))
 			atomic.StoreInt64(&rf.matchIndex[rf.me], int64(index))
-			rf.Log("new log: ", rf.logs[1:])
+			// rf.Log("new log: ", rf.logs[1:])
+			rf.Log("new log: ", entry)
 		}
 	}
 	rf.Log("receive rf.killed!")

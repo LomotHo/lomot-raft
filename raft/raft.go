@@ -252,9 +252,3 @@ func Make(peers []*labrpc.ClientEnd, me int,
 
 	return rf
 }
-
-// The ticker go routine starts a new election if this peer hasn't received
-// heartsbeats recently.
-func (rf *Raft) ticker() {
-	rf.runFollower()
-}
