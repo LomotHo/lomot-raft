@@ -45,6 +45,7 @@ func (rf *Raft) sendRequestVote(server int, args *RequestVoteArgs, reply *Reques
 
 func (rf *Raft) handleVote(req RequestVoteArgs) RequestVoteReply {
 	currentTerm := rf.getTerm()
+	oldTerm := rf.getTerm()
 	// currentTerm < req.Term && (rf.votedFor == -1 || rf.votedFor == req.CandidateId)
 	if currentTerm < req.Term {
 		rf.setTerm(req.Term)
@@ -68,7 +69,7 @@ func (rf *Raft) handleVote(req RequestVoteArgs) RequestVoteReply {
 		// }
 	}
 	return RequestVoteReply{
-		Term:        currentTerm,
+		Term:        oldTerm,
 		VoteGranted: false,
 	}
 

@@ -10,7 +10,7 @@ type appendEntriesCount struct {
 	Kind         appendEntriesCountType
 	Peer         int
 	AppliedIndex int64
-	Size         int
+	DebugInfo    string
 }
 
 const (
@@ -33,7 +33,7 @@ func (rf *Raft) sendAppendEntriesRPC(serverId int, leaderClosed *int32, countC c
 			countC <- appendEntriesCount{Kind: HEARTBEAT_OK, Peer: serverId}
 		}
 	} else {
-		countC <- appendEntriesCount{Kind: APPEND_ENTRIES_FAILED, Peer: serverId}
+		countC <- appendEntriesCount{Kind: APPEND_ENTRIES_FAILED, Peer: serverId, DebugInfo: reply.DebugInfo}
 	}
 }
 
@@ -143,16 +143,17 @@ func (rf *Raft) runLeader() {
 									Command:      rf.logs[rf.commitIndex].Command,
 									CommandIndex: int(rf.commitIndex),
 								}
-								rf.Log("leader commited", rf.logs[1:])
+								rf.Log("leader commited", rf.logs[rf.commitIndex])
 								break
 							}
 						}
 					}
 				}
 			case APPEND_ENTRIES_FAILED:
+				// rf.Log("appendEntries FAILED, ID: ", cnt.Peer, cnt.DebugInfo)
 				appendEntriesFailedNum++
 				if appendEntriesFailedNum%10 == 0 {
-					rf.Log("appendEntries not ok ", appendEntriesFailedNum)
+					rf.Log("appendEntries FAILED ", appendEntriesFailedNum)
 				}
 				if rf.nextIndex[cnt.Peer] > 1 {
 					rf.nextIndex[cnt.Peer]--
@@ -174,13 +175,13 @@ func (rf *Raft) runLeader() {
 		case vote := <-rf.voteC:
 			reply := rf.handleVote(vote.Req)
 			vote.ReplyC <- reply
-			if reply.VoteGranted || reply.Term > rf.currentTerm {
+			if reply.VoteGranted || reply.Term < rf.currentTerm {
 				rf.Log("Leader get Vote, go Follower, vote.Req.Term:", vote.Req.Term)
 				atomic.StoreInt32(&leaderClosed, 1)
 				rf.Turn(2)
 				return
 			}
-		case command := <-rf.commandC:
+		case startCommand := <-rf.commandC:
 			// rf.Log("command type: ", reflect.TypeOf(command))
 			// var entry Entry
 			// if v, ok := command.(int); ok {
@@ -188,8 +189,9 @@ func (rf *Raft) runLeader() {
 			// } else {
 			// 	log.Panic("err type of command")
 			// }
-			entry := Entry{Term: term, Command: command}
+			entry := Entry{Term: term, Command: startCommand.Command}
 			atomic.AddInt64(&rf.lastApplied, 1)
+			startCommand.ReqC <- int(atomic.LoadInt64(&rf.lastApplied))
 			rf.logs = append(rf.logs, entry)
 			index := len(rf.logs)
 			atomic.StoreInt64(&rf.nextIndex[rf.me], int64(index+1))

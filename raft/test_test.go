@@ -327,6 +327,8 @@ loop:
 		cmds := []int{}
 		for index := range is {
 			cmd := cfg.wait(index, servers, term)
+			log.Println(cmd, index)
+
 			if ix, ok := cmd.(int); ok {
 				if ix == -1 {
 					// peers have moved on to later terms

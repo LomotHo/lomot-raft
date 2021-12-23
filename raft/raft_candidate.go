@@ -49,7 +49,7 @@ func (rf *Raft) runCandidate() {
 			if voteNum >= (peerNum/2)+1 {
 				rf.Log("get enougth vote , go Leader")
 				atomic.StoreInt32(&voteFinished, 1)
-				rf.votedFor = -1
+				// rf.votedFor = -1
 				rf.Turn(0)
 				return
 			}
@@ -58,7 +58,6 @@ func (rf *Raft) runCandidate() {
 			entry.ReplyC <- reply
 			if reply.Success {
 				rf.Log("get entry, go Follower, entry.Req.Term:", entry.Req.Term)
-				rf.votedFor = -1
 				rf.Turn(2)
 				return
 			} else {
@@ -69,14 +68,12 @@ func (rf *Raft) runCandidate() {
 			vote.ReplyC <- reply
 			if reply.VoteGranted {
 				rf.Log("get Vote, go Follower, vote.Req.Term:", vote.Req.Term)
-				rf.votedFor = -1
 				rf.Turn(2)
 				return
 			}
 		case <-voteTimeoutTimer.C:
 			atomic.StoreInt32(&voteFinished, 1)
 			rf.Log("vote timeout , go Candidate again")
-			rf.votedFor = -1
 			rf.Turn(1)
 			return
 		}

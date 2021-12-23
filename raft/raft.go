@@ -49,6 +49,10 @@ type ApplyMsg struct {
 	SnapshotTerm  int
 	SnapshotIndex int
 }
+type startCommand struct {
+	Command interface{}
+	ReqC    chan int
+}
 
 //
 // A Go object implementing a single Raft peer.
@@ -70,7 +74,7 @@ type Raft struct {
 	stateC      chan int32
 	voteC       chan RequestVoteWarp
 	entryC      chan AppendEntryWarp
-	commandC    chan interface{}
+	commandC    chan startCommand
 	applyCh     chan ApplyMsg
 	logs        []Entry
 	commitIndex int64
@@ -165,8 +169,10 @@ func (rf *Raft) Snapshot(index int, snapshot []byte) {
 // the leader.
 //
 func (rf *Raft) Start(command interface{}) (int, int, bool) {
-	index := int(atomic.LoadInt64(&rf.lastApplied) + 1)
+	var index int
 	// Your code here (2B).
+	// index := int(atomic.LoadInt64(&rf.lastApplied) + 1)
+	reqC := make(chan int)
 	isLeader := false
 	if rf.GetRole() == 0 {
 		isLeader = true
@@ -174,7 +180,8 @@ func (rf *Raft) Start(command interface{}) (int, int, bool) {
 	if isLeader {
 		// rf.Log(command)
 		// rf.commandC <- fmt.Sprintf("%v", command)
-		rf.commandC <- command
+		rf.commandC <- startCommand{Command: command, ReqC: reqC}
+		index = <-reqC
 	}
 	return index, int(rf.getTerm()), isLeader
 }
@@ -224,7 +231,7 @@ func Make(peers []*labrpc.ClientEnd, me int,
 	rf.stateC = make(chan int32)
 	rf.voteC = make(chan RequestVoteWarp)
 	rf.entryC = make(chan AppendEntryWarp)
-	rf.commandC = make(chan interface{}, 1024)
+	rf.commandC = make(chan startCommand, 1024)
 	rf.applyCh = applyCh
 	rf.commitIndex = 0
 	rf.lastApplied = 0

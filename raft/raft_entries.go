@@ -18,8 +18,9 @@ type AppendEntriesArgs struct {
 	PrevLogTerm  int64
 }
 type AppendEntriesReply struct {
-	Term    int64
-	Success bool
+	Term      int64
+	Success   bool
+	DebugInfo string
 }
 type AppendEntryWarp struct {
 	Req    AppendEntriesArgs
@@ -51,7 +52,15 @@ func (rf *Raft) handleEntry(req AppendEntriesArgs) AppendEntriesReply {
 		rf.votedFor = -1
 		rf.leaderId = req.LeaderId
 		// rf.Log("req: ", req)
-		if rf.lastApplied >= req.PrevLogIndex && rf.logs[rf.lastApplied].Term == req.PrevLogTerm {
+		if rf.lastApplied >= req.PrevLogIndex && rf.logs[req.PrevLogIndex].Term == req.PrevLogTerm {
+			if len(req.Entries) != 0 {
+				rf.logs = append(rf.logs[:req.PrevLogIndex+1], req.Entries...)
+				// rf.lastApplied += len(req.Entries)
+				// rf.commitIndex = req.LeaderCommit
+				atomic.StoreInt64(&rf.lastApplied, req.PrevLogIndex+int64(len(req.Entries)))
+				// atomic.StoreInt64(&rf.commitIndex, req.LeaderCommit)
+				rf.Log("log appended", rf.logs[1:])
+			}
 			// check commit
 			if req.LeaderCommit > rf.commitIndex && rf.lastApplied > rf.commitIndex {
 				oldCommitIndex := rf.commitIndex
@@ -69,27 +78,22 @@ func (rf *Raft) handleEntry(req AppendEntriesArgs) AppendEntriesReply {
 					rf.Log("log commited", rf.logs[i])
 				}
 			}
-			if len(req.Entries) != 0 {
-				rf.logs = append(rf.logs[:req.PrevLogIndex+1], req.Entries...)
-				// rf.lastApplied += len(req.Entries)
-				// rf.commitIndex = req.LeaderCommit
-				atomic.StoreInt64(&rf.lastApplied, req.PrevLogIndex+int64(len(req.Entries)))
-				// atomic.StoreInt64(&rf.commitIndex, req.LeaderCommit)
-				rf.Log("log appended", rf.logs[1:])
-			}
 			return AppendEntriesReply{
 				Term:    req.Term,
 				Success: true,
 			}
 		}
+		rf.Log("PrevLogIndex err req: ", req, " log: ", rf.logs)
 		return AppendEntriesReply{
-			Term:    currentTerm,
-			Success: false,
+			Term:      currentTerm,
+			Success:   false,
+			DebugInfo: "PrevLogIndex err",
 		}
 	} else {
 		return AppendEntriesReply{
-			Term:    currentTerm,
-			Success: false,
+			Term:      currentTerm,
+			Success:   false,
+			DebugInfo: "old term",
 		}
 	}
 }
