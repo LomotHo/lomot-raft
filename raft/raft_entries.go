@@ -51,14 +51,14 @@ func (rf *Raft) handleEntry(req AppendEntriesArgs) AppendEntriesReply {
 	if currentTerm <= req.Term {
 		rf.setTerm(req.Term)
 		rf.votedFor = -1
-		// } else {
-		// 	return AppendEntriesReply{
-		// 		Term:      currentTerm,
-		// 		Success:   false,
-		// 		DebugInfo: "old term",
-		// 	}
-		// }
-		// if rf.GetRole() != 0 {
+	} else {
+		return AppendEntriesReply{
+			Term:      currentTerm,
+			Success:   false,
+			DebugInfo: "old term",
+		}
+	}
+	if rf.GetRole() != 0 {
 		rf.leaderId = req.LeaderId
 		// rf.Log("req: ", req)
 		if rf.lastApplied >= req.PrevLogIndex && rf.logs[req.PrevLogIndex].Term == req.PrevLogTerm {
@@ -107,8 +107,3 @@ func (rf *Raft) handleEntry(req AppendEntriesArgs) AppendEntriesReply {
 		}
 	}
 }
-
-// func (rf *Raft) writeLog(entry Entry) {
-// 	rf.lastApplied++
-// 	rf.logs = append(rf.logs, entry)
-// }

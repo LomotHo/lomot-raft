@@ -14,13 +14,17 @@ type appendEntriesCount struct {
 }
 
 const (
+	// appendEntriesCountType
 	// HEARTBEAT_FAILED      appendEntriesCountType = 0
 	HEARTBEAT_OK          appendEntriesCountType = 1
 	APPEND_ENTRIES_FAILED appendEntriesCountType = 2
 	APPEND_ENTRIES_OK     appendEntriesCountType = 3
+
+	// other
+	SEND_APPEND_ENTRIES_RETRY_NUM = 20
 )
 
-func (rf *Raft) sendAppendEntriesRPC(serverId int, leaderClosed *int32, countC chan appendEntriesCount, args *AppendEntriesArgs) {
+func (rf *Raft) sendAppendEntriesRpc(serverId int, leaderClosed *int32, countC chan appendEntriesCount, args *AppendEntriesArgs) {
 	reply := AppendEntriesReply{}
 	ok := rf.sendAppendEntries(serverId, args, &reply)
 	if atomic.LoadInt32(leaderClosed) == 1 {
@@ -33,39 +37,17 @@ func (rf *Raft) sendAppendEntriesRPC(serverId int, leaderClosed *int32, countC c
 			countC <- appendEntriesCount{Kind: HEARTBEAT_OK, Peer: serverId}
 		}
 	} else {
-		countC <- appendEntriesCount{Kind: APPEND_ENTRIES_FAILED, Peer: serverId, DebugInfo: reply.DebugInfo}
+		if len(args.Entries) != 0 {
+			countC <- appendEntriesCount{Kind: APPEND_ENTRIES_FAILED, Peer: serverId, DebugInfo: reply.DebugInfo}
+		}
 	}
 }
-
-// func (rf *Raft) sendAppendEntriesTick(serverId int, leaderClosed *int32, countC chan appendEntriesCount) {
-// 	heartbeatTicker := time.NewTicker(GetTimeInterval(HeartBeatTimeout))
-// 	defer heartbeatTicker.Stop()
-// 	term := rf.getTerm()
-// 	me := rf.me
-// 	for !rf.killed() {
-// 		select {
-// 		case <-heartbeatTicker.C:
-// 			peerIndex := rf.nextIndex[serverId]
-// 			args := AppendEntriesArgs{
-// 				Term:         term,
-// 				LeaderId:     me,
-// 				Entries:      rf.logs[peerIndex+1:],
-// 				LeaderCommit: rf.commitIndex,
-// 				PrevLogIndex: peerIndex,
-// 				PrevLogTerm:  rf.logs[peerIndex].Term,
-// 			}
-// 			reply := AppendEntriesReply{}
-// 			if ok := rf.sendAppendEntries(serverId, &args, &reply); ok {
-
-// 			}
-// 		}
-// 	}
-// }
 
 func (rf *Raft) runLeader() {
 	term := rf.getTerm()
 	me := rf.me
 	peerNum := len(rf.peers)
+	sendAppendEntriesRetryNum := make([]int, peerNum)
 	for i := 0; i < len(rf.peers); i++ {
 		rf.matchIndex[i] = 0
 		if rf.commitIndex > 1 {
@@ -82,6 +64,20 @@ func (rf *Raft) runLeader() {
 	var appendEntriesFailedNum int = 0
 	// var appendEntriesCommitNum int = 0
 
+	sendAppendEntriesRpcWarp := func(serverId int) {
+		nextIndex := rf.nextIndex[serverId]
+		args := AppendEntriesArgs{
+			Term:         term,
+			LeaderId:     me,
+			Entries:      rf.logs[nextIndex:],
+			LeaderCommit: rf.commitIndex,
+			PrevLogIndex: nextIndex - 1,
+			PrevLogTerm:  rf.logs[nextIndex-1].Term,
+		}
+		go rf.sendAppendEntriesRpc(serverId, &leaderClosed, appendEntriesCountC, &args)
+		// sendAppendEntriesRetryNum[serverId] = 0
+	}
+
 	for !rf.killed() {
 		select {
 		case <-heartbeatTicker.C:
@@ -89,21 +85,11 @@ func (rf *Raft) runLeader() {
 			heartbeatOkArr = make([]bool, peerNum)
 			appendEntriesCountC <- appendEntriesCount{Kind: HEARTBEAT_OK, Peer: me}
 			for i := 0; i < peerNum; i++ {
-				if i == me {
-					continue
+				if i != me && sendAppendEntriesRetryNum[i] == 0 {
+					sendAppendEntriesRpcWarp(i)
 				}
-				nextIndex := rf.nextIndex[i]
-				args := AppendEntriesArgs{
-					Term:         term,
-					LeaderId:     me,
-					Entries:      rf.logs[nextIndex:],
-					LeaderCommit: rf.commitIndex,
-					PrevLogIndex: nextIndex - 1,
-					PrevLogTerm:  rf.logs[nextIndex-1].Term,
-				}
-				go rf.sendAppendEntriesRPC(i, &leaderClosed, appendEntriesCountC, &args)
 			}
-
+			sendAppendEntriesRetryNum = make([]int, peerNum)
 		case cnt := <-appendEntriesCountC:
 			switch cnt.Kind {
 			case HEARTBEAT_OK:
@@ -163,12 +149,16 @@ func (rf *Raft) runLeader() {
 						atomic.StoreInt64(&rf.matchIndex[cnt.Peer], nextIndex/2-1)
 					}
 				}
+				if sendAppendEntriesRetryNum[cnt.Peer] < SEND_APPEND_ENTRIES_RETRY_NUM {
+					sendAppendEntriesRpcWarp(cnt.Peer)
+					sendAppendEntriesRetryNum[cnt.Peer]++
+				}
 			}
 		case entry := <-rf.entryC:
 			rf.Log("!!!Leader get entry!!!, Term:", entry.Req.Term)
 			reply := rf.handleEntry(entry.Req)
 			entry.ReplyC <- reply
-			if reply.Success {
+			if reply.Success || reply.Term < rf.currentTerm {
 				rf.Log("Leader get Vote, go Follower")
 				atomic.StoreInt32(&leaderClosed, 1)
 				rf.Turn(2)
@@ -205,20 +195,3 @@ func (rf *Raft) runLeader() {
 	rf.Log("receive rf.killed!")
 	atomic.StoreInt32(&leaderClosed, 1)
 }
-
-// sendHeartbeatRPC := func(serverId int, term int64, countC chan appendEntriesCount, leaderClosed *int32) {
-// 	reply := AppendEntriesReply{}
-// 	ok := rf.sendAppendEntries(serverId, &AppendEntriesArgs{
-// 		Term:         term,
-// 		LeaderId:     me,
-// 		LeaderCommit: rf.commitIndex,
-// 	}, &reply)
-// 	if atomic.LoadInt32(leaderClosed) == 1 {
-// 		// rf.Log("close old leader heartbeatTicker func")
-// 		return
-// 	} else if ok {
-// 		countC <- appendEntriesCount{Kind: HEARTBEAT_OK, Peer: serverId}
-// 	} else {
-// 		countC <- appendEntriesCount{Kind: HEARTBEAT_FAILED, Peer: serverId}
-// 	}
-// }
