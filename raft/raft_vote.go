@@ -61,6 +61,7 @@ func (rf *Raft) handleVote(req RequestVoteArgs) RequestVoteReply {
 			(req.LastLogTerm == rf.logs[rf.lastApplied].Term && req.LastLogIndex >= rf.lastApplied) {
 			rf.Log("Granted Vote to ", req.CandidateId, " currentTerm: ", currentTerm, " req.Term ", req.Term)
 			rf.votedFor = req.CandidateId
+			rf.persist()
 			return RequestVoteReply{
 				Term:        req.Term,
 				VoteGranted: true,

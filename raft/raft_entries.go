@@ -89,6 +89,7 @@ func (rf *Raft) handleEntry(req AppendEntriesArgs) AppendEntriesReply {
 					rf.Log("log commited", rf.logs[i])
 				}
 			}
+			rf.persist()
 			return AppendEntriesReply{
 				Term:    req.Term,
 				Success: true,

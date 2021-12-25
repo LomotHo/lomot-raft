@@ -199,6 +199,7 @@ func (rf *Raft) runLeader() {
 			atomic.StoreInt64(&rf.matchIndex[rf.me], int64(index))
 			// rf.Log("new log: ", rf.logs[1:])
 			rf.Log("new log: ", entry)
+			rf.persist()
 		}
 	}
 	rf.Log("receive rf.killed!")
