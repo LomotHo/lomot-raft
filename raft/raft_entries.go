@@ -63,6 +63,7 @@ func (rf *Raft) handleEntry(req AppendEntriesArgs) AppendEntriesReply {
 		// rf.Log("req: ", req)
 		if rf.lastApplied >= req.PrevLogIndex && rf.logs[req.PrevLogIndex].Term == req.PrevLogTerm {
 			if len(req.Entries) != 0 {
+				// race
 				rf.logs = append(rf.logs[:req.PrevLogIndex+1], req.Entries...)
 				// rf.lastApplied += len(req.Entries)
 				// rf.commitIndex = req.LeaderCommit

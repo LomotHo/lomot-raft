@@ -26,6 +26,10 @@ const (
 
 func (rf *Raft) sendAppendEntriesRpc(serverId int, leaderClosed *int32, countC chan appendEntriesCount, args *AppendEntriesArgs) {
 	reply := AppendEntriesReply{}
+	// race
+	if atomic.LoadInt32(leaderClosed) == 1 {
+		return
+	}
 	ok := rf.sendAppendEntries(serverId, args, &reply)
 	if atomic.LoadInt32(leaderClosed) == 1 {
 		return
@@ -66,10 +70,14 @@ func (rf *Raft) runLeader() {
 
 	sendAppendEntriesRpcWarp := func(serverId int) {
 		nextIndex := rf.nextIndex[serverId]
+		// copy log to prevent rece
+		entries := make([]Entry, len(rf.logs[nextIndex:]))
+		copy(entries, rf.logs[nextIndex:])
+		// prevLogTerm:=rf.logs[nextIndex-1].Term
 		args := AppendEntriesArgs{
 			Term:         term,
 			LeaderId:     me,
-			Entries:      rf.logs[nextIndex:],
+			Entries:      entries,
 			LeaderCommit: rf.commitIndex,
 			PrevLogIndex: nextIndex - 1,
 			PrevLogTerm:  rf.logs[nextIndex-1].Term,
@@ -143,6 +151,7 @@ func (rf *Raft) runLeader() {
 				}
 				nextIndex := atomic.LoadInt64(&rf.nextIndex[cnt.Peer])
 				matchIndex := atomic.LoadInt64(&rf.matchIndex[cnt.Peer])
+				// FIXME!!!
 				if nextIndex > 1 {
 					atomic.StoreInt64(&rf.nextIndex[cnt.Peer], nextIndex/2)
 					if nextIndex/2 <= matchIndex {

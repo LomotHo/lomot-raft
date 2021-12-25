@@ -3,7 +3,7 @@
 for((i=1;i<=100;i++));  
 do
   echo $i
-  go test -run 2B |grep FAIL
+  go test -run TestBackup2B -race >> ../.tmp/TestBackup2B
 done  
 
 # path=.tmp/res
