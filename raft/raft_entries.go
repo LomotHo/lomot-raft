@@ -70,6 +70,7 @@ func (rf *Raft) handleEntry(req AppendEntriesArgs) AppendEntriesReply {
 				// atomic.StoreInt64(&rf.commitIndex, req.LeaderCommit)
 				// rf.Log("log appended", rf.logs[1:])
 				rf.Log("log appended", req.Entries)
+				rf.persist()
 			}
 			// check commit
 			if req.LeaderCommit > rf.commitIndex && rf.lastApplied > rf.commitIndex {
@@ -88,7 +89,8 @@ func (rf *Raft) handleEntry(req AppendEntriesArgs) AppendEntriesReply {
 					rf.Log("log commited", rf.logs[i])
 				}
 			}
-			rf.persist()
+			// rf.persist()
+
 			return AppendEntriesReply{
 				Term:    req.Term,
 				Success: true,

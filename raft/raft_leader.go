@@ -27,11 +27,11 @@ const (
 func (rf *Raft) sendAppendEntriesRpc(serverId int, leaderClosed *int32, countC chan appendEntriesCount, args *AppendEntriesArgs) {
 	reply := AppendEntriesReply{}
 	// race
-	if atomic.LoadInt32(leaderClosed) == 1 {
+	if atomic.LoadInt32(leaderClosed) == 1 || rf.killed() {
 		return
 	}
 	ok := rf.sendAppendEntries(serverId, args, &reply)
-	if atomic.LoadInt32(leaderClosed) == 1 {
+	if atomic.LoadInt32(leaderClosed) == 1 || rf.killed() {
 		return
 	}
 	if ok && reply.Success {
@@ -146,7 +146,7 @@ func (rf *Raft) runLeader() {
 			case APPEND_ENTRIES_FAILED:
 				// rf.Log("appendEntries FAILED, ID: ", cnt.Peer, cnt.DebugInfo)
 				appendEntriesFailedNum++
-				if appendEntriesFailedNum%10 == 0 {
+				if appendEntriesFailedNum%100 == 0 {
 					rf.Log("appendEntries FAILED ", appendEntriesFailedNum)
 				}
 				nextIndex := atomic.LoadInt64(&rf.nextIndex[cnt.Peer])
