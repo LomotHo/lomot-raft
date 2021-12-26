@@ -1,9 +1,11 @@
 #!/bin/bash
 
 TEST_PROJECT=$1
-for ((i = 1; i <= 100; i++)); do
+RETRY_TIMES=$2
+for ((i = 1; i <= $RETRY_TIMES; i++)); do
   echo $i
-  GO_DEBUG=1 go test -run $TEST_PROJECT -race >>../.tmp/raft.log
+  GO_DEBUG=1 go test -run $TEST_PROJECT >>../.tmp/raft.log
+  # GO_DEBUG=1 go test -run $TEST_PROJECT -race | grep FAIL
   # go test -run $TEST_PROJECT -race >>../.tmp/raft.log
 done
 

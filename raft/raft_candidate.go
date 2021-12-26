@@ -24,21 +24,15 @@ func (rf *Raft) runCandidate() {
 	defer voteTimeoutTimer.Stop()
 	tickerVoteC := make(chan bool)
 
-	sendRequestVoteRPC := func(index int, voteFinished *int32, tickerVoteC chan bool) {
+	sendRequestVoteRpc := func(index int, voteFinished *int32, voteCountC chan bool, arg *RequestVoteArgs) {
 		reply := RequestVoteReply{}
-		lastLogIndex := atomic.LoadInt64(&rf.lastApplied)
-		if ok := rf.sendRequestVote(index, &RequestVoteArgs{
-			Term:         rf.getTerm(),
-			CandidateId:  rf.me,
-			LastLogIndex: lastLogIndex,
-			LastLogTerm:  atomic.LoadInt64(&rf.logs[lastLogIndex].Term),
-		}, &reply); ok {
+		if ok := rf.sendRequestVote(index, arg, &reply); ok {
 			if atomic.LoadInt32(voteFinished) == 1 {
 				return
 			}
 			rf.Log("vote reply from ", index, reply)
 			if reply.VoteGranted {
-				tickerVoteC <- true
+				voteCountC <- true
 			}
 		}
 	}
@@ -46,7 +40,14 @@ func (rf *Raft) runCandidate() {
 		if i == rf.me {
 			continue
 		}
-		go sendRequestVoteRPC(i, &voteFinished, tickerVoteC)
+		lastLogIndex := atomic.LoadInt64(&rf.lastApplied)
+		arg := RequestVoteArgs{
+			Term:         rf.getTerm(),
+			CandidateId:  rf.me,
+			LastLogIndex: lastLogIndex,
+			LastLogTerm:  atomic.LoadInt64(&rf.logs[lastLogIndex].Term),
+		}
+		go sendRequestVoteRpc(i, &voteFinished, tickerVoteC, &arg)
 	}
 
 	for !rf.killed() {

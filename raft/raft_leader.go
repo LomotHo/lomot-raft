@@ -124,20 +124,30 @@ func (rf *Raft) runLeader() {
 				atomic.StoreInt64(&rf.matchIndex[cnt.Peer], cnt.AppliedIndex)
 				atomic.StoreInt64(&rf.nextIndex[cnt.Peer], cnt.AppliedIndex+1)
 				// rf.Log("APPEND_ENTRIES_OK", rf.commitIndex)
-				for i := rf.commitIndex; i < rf.lastApplied; i++ {
+				commitIndexLast := rf.commitIndex
+				commitIndexTemp := rf.commitIndex
+				for i := commitIndexLast; i < rf.lastApplied; i++ {
 					entriesOkCnt := 0
+					if commitIndexTemp < i {
+						break
+					}
 					for _, peerIndex := range rf.matchIndex {
 						if i < peerIndex {
 							entriesOkCnt++
 							if entriesOkCnt >= (peerNum/2)+1 {
-								// rf.commitIndex++
-								atomic.AddInt64(&rf.commitIndex, 1)
-								rf.applyCh <- ApplyMsg{
-									CommandValid: true,
-									Command:      rf.logs[rf.commitIndex].Command,
-									CommandIndex: int(rf.commitIndex),
+								commitIndexTemp++
+								// commit only when logs[].Term==rf.currentTerm
+								if rf.logs[commitIndexTemp].Term == rf.currentTerm {
+									for applyIndex := int64(rf.commitIndex) + 1; applyIndex <= commitIndexTemp; applyIndex++ {
+										rf.applyCh <- ApplyMsg{
+											CommandValid: true,
+											Command:      rf.logs[applyIndex].Command,
+											CommandIndex: int(applyIndex),
+										}
+										rf.Log("leader commited", rf.logs[rf.commitIndex])
+									}
+									atomic.StoreInt64(&rf.commitIndex, commitIndexTemp)
 								}
-								rf.Log("leader commited", rf.logs[rf.commitIndex])
 								break
 							}
 						}
@@ -147,7 +157,7 @@ func (rf *Raft) runLeader() {
 				// rf.Log("appendEntries FAILED, ID: ", cnt.Peer, cnt.DebugInfo)
 				appendEntriesFailedNum++
 				if appendEntriesFailedNum%100 == 0 {
-					rf.Log("appendEntries FAILED ", appendEntriesFailedNum)
+					rf.Log("appendEntries Failed ", appendEntriesFailedNum)
 				}
 				nextIndex := atomic.LoadInt64(&rf.nextIndex[cnt.Peer])
 				matchIndex := atomic.LoadInt64(&rf.matchIndex[cnt.Peer])
