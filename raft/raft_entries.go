@@ -69,7 +69,7 @@ func (rf *Raft) handleEntry(req AppendEntriesArgs) AppendEntriesReply {
 				atomic.StoreInt64(&rf.lastApplied, req.PrevLogIndex+int64(len(req.Entries)))
 				// atomic.StoreInt64(&rf.commitIndex, req.LeaderCommit)
 				// rf.Log("log appended", rf.logs[1:])
-				rf.Log("log appended", req.Entries)
+				rf.Log("log appended ", rf.getLogsOneLine(req.PrevLogIndex, int64(len(rf.logs))))
 				rf.persist()
 			}
 			// check commit
@@ -80,14 +80,14 @@ func (rf *Raft) handleEntry(req AppendEntriesArgs) AppendEntriesReply {
 				} else {
 					rf.commitIndex = req.LeaderCommit
 				}
-				for i := oldCommitIndex + 1; i <= rf.commitIndex; i++ {
+				for i := oldCommitIndex + 1; i < rf.commitIndex+1; i++ {
 					rf.applyCh <- ApplyMsg{
 						CommandValid: true,
 						Command:      rf.logs[i].Command,
 						CommandIndex: int(i),
 					}
-					rf.Log("log commited", rf.logs[i])
 				}
+				rf.Log("log commited ", rf.getLogsOneLine(oldCommitIndex+1, rf.commitIndex+1))
 			}
 			// rf.persist()
 

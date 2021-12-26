@@ -44,6 +44,14 @@ func (rf *Raft) Log(v ...interface{}) {
 	}
 }
 
+func (rf *Raft) getLogsOneLine(a, b int64) string {
+	if b-a <= 4 {
+		return fmt.Sprintf(" %v-%v | %v", a, b-1, rf.logs[a:b])
+	} else {
+		return fmt.Sprintf(" %v-%v | [%v%v--%v%v]", a, b-1, rf.logs[a], rf.logs[a+1], rf.logs[b-2], rf.logs[b-1])
+	}
+}
+
 // func GetRandTimeOffset(id int, timeoutAmount int) int {
 // 	if Debug {
 // 		return 10 * id

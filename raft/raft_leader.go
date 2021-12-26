@@ -138,20 +138,26 @@ func (rf *Raft) runLeader() {
 								commitIndexTemp++
 								// commit only when logs[].Term==rf.currentTerm
 								if rf.logs[commitIndexTemp].Term == rf.currentTerm {
-									for applyIndex := int64(rf.commitIndex) + 1; applyIndex <= commitIndexTemp; applyIndex++ {
+									for applyIndex := int64(rf.commitIndex) + 1; applyIndex < commitIndexTemp+1; applyIndex++ {
 										rf.applyCh <- ApplyMsg{
 											CommandValid: true,
 											Command:      rf.logs[applyIndex].Command,
 											CommandIndex: int(applyIndex),
 										}
-										rf.Log("leader commited", rf.logs[rf.commitIndex])
+										// rf.Log("leader commited", rf.logs[rf.commitIndex])
 									}
 									atomic.StoreInt64(&rf.commitIndex, commitIndexTemp)
+
 								}
 								break
 							}
 						}
 					}
+				}
+				if commitIndexLast < rf.commitIndex {
+					rf.Log("leader commited: ", rf.getLogsOneLine(commitIndexLast, rf.commitIndex+1))
+				} else if commitIndexLast > rf.commitIndex {
+					panic("commitIndexLast > rf.commitIndex")
 				}
 			case APPEND_ENTRIES_FAILED:
 				// rf.Log("appendEntries FAILED, ID: ", cnt.Peer, cnt.DebugInfo)
@@ -208,7 +214,7 @@ func (rf *Raft) runLeader() {
 			atomic.StoreInt64(&rf.nextIndex[rf.me], int64(index+1))
 			atomic.StoreInt64(&rf.matchIndex[rf.me], int64(index))
 			// rf.Log("new log: ", rf.logs[1:])
-			rf.Log("new log: ", entry)
+			// rf.Log("new log: ", entry)
 			rf.persist()
 		}
 	}

@@ -65,7 +65,7 @@ func (rf *Raft) runCandidate() {
 		case entry := <-rf.entryC:
 			reply := rf.handleEntry(entry.Req)
 			entry.ReplyC <- reply
-			if reply.Success {
+			if reply.Success || reply.Term < rf.currentTerm {
 				rf.Log("get entry, go Follower, entry.Req.Term:", entry.Req.Term)
 				rf.Turn(2)
 				return
@@ -75,7 +75,7 @@ func (rf *Raft) runCandidate() {
 		case vote := <-rf.voteC:
 			reply := rf.handleVote(vote.Req)
 			vote.ReplyC <- reply
-			if reply.VoteGranted {
+			if reply.VoteGranted || reply.Term < rf.currentTerm {
 				rf.Log("get Vote, go Follower, vote.Req.Term:", vote.Req.Term)
 				rf.Turn(2)
 				return
