@@ -327,7 +327,7 @@ loop:
 		cmds := []int{}
 		for index := range is {
 			cmd := cfg.wait(index, servers, term)
-			log.Println(cmd, index)
+			DPrintf("%v | %v", cmd, index)
 
 			if ix, ok := cmd.(int); ok {
 				if ix == -1 {
